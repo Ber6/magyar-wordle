@@ -2,13 +2,29 @@
 <html lang="hu">
 <head>
   <meta charset="UTF-8">
-  <title>Magyar Wordle – Napi Szó</title>
+  <title>Lauder Wordle</title>
   <style>
     body {
       font-family: Arial, sans-serif;
       text-align: center;
       background: #121213;
       color: white;
+      margin: 0;
+      padding: 20px;
+    }
+    input[type="text"] {
+      padding: 10px;
+      font-size: 16px;
+      margin: 5px;
+      width: 200px;
+      text-align: center;
+      text-transform: lowercase;
+    }
+    button {
+      padding: 10px 20px;
+      font-size: 16px;
+      margin: 5px;
+      cursor: pointer;
     }
     .board {
       display: grid;
@@ -40,39 +56,40 @@
       background-color: #3a3a3c;
       border-color: #3a3a3c;
     }
-    input[type="text"] {
-      margin-top: 20px;
-      padding: 10px;
-      font-size: 20px;
-      width: 200px;
-      text-align: center;
-      text-transform: lowercase;
-    }
-    button {
-      padding: 10px 20px;
-      font-size: 18px;
-      margin: 10px 5px;
-      cursor: pointer;
-    }
-    #message {
-      margin-top: 20px;
-      font-size: 18px;
+    #leaderboard {
+      list-style: none;
+      padding: 0;
+      max-width: 400px;
+      margin: 20px auto;
+      text-align: left;
     }
   </style>
 </head>
 <body>
 
-  <h1>Magyar Wordle – Napi Szó</h1>
+  <h1>Lauder Wordle</h1>
+
+  <h2>Kérlek add meg a neved és osztályod:</h2>
+  <input type="text" id="playerName" placeholder="Név">
+  <input type="text" id="playerClass" placeholder="Osztály">
+  <button onclick="startGame()">Start</button>
+  <p id="setupMessage"></p>
+  <hr style="margin-top: 20px;">
+
   <div class="board" id="board"></div>
 
   <input type="text" id="guessInput" maxlength="5" placeholder="Írj egy 5 betűs szót">
   <button onclick="makeGuess()">Tippel</button>
   <p id="message"></p>
 
+  <h2>Toplista (Napi szó)</h2>
+  <ul id="leaderboard"></ul>
+
   <script>
     let words = [];
     let target = "";
     let attempts = 0;
+    let player = null;
 
     const board = document.getElementById('board');
     const input = document.getElementById('guessInput');
@@ -82,10 +99,26 @@
       if (e.key === "Enter") makeGuess();
     });
 
-    function getDailyIndex(wordListLength) {
+    function startGame() {
+      const name = document.getElementById("playerName").value.trim();
+      const osztaly = document.getElementById("playerClass").value.trim();
+      const setupMsg = document.getElementById("setupMessage");
+
+      if (!name || !osztaly) {
+        setupMsg.textContent = "Kérlek, add meg a neved és osztályod!";
+        return;
+      }
+
+      player = { name, osztaly };
+      document.getElementById("playerName").disabled = true;
+      document.getElementById("playerClass").disabled = true;
+      setupMsg.innerHTML = `<strong>Jó játékot, ${name} (${osztaly})!</strong>`;
+    }
+
+    function getDailyIndex(len) {
       const today = new Date();
       const daysSinceEpoch = Math.floor(today.getTime() / (1000 * 60 * 60 * 24));
-      return daysSinceEpoch % wordListLength;
+      return daysSinceEpoch % len;
     }
 
     function loadWordList() {
@@ -95,7 +128,7 @@
           words = text
             .split(/\r?\n/)
             .map(w => w.trim().toLowerCase())
-            .filter(w => /^[a-záéíóöőúüű]{5}$/i.test(w)); // csak 5 betűs magyar szavak
+            .filter(w => /^[a-záéíóöőúüű]{5}$/i.test(w));
 
           if (words.length === 0) {
             message.textContent = "Nem találtam érvényes 5 betűs szót.";
@@ -104,15 +137,21 @@
 
           const index = getDailyIndex(words.length);
           target = words[index];
-          console.log("Napi szó:", target); // töröld éles verzióban
+          console.log("Napi szó:", target); // DEBUG
+          renderLeaderboard();
         })
         .catch(err => {
-          console.error("Hiba a szólista betöltésekor:", err);
+          console.error("Szólista betöltési hiba:", err);
           message.textContent = "Nem sikerült betölteni a szavakat.";
         });
     }
 
     function makeGuess() {
+      if (!player) {
+        message.textContent = "Előbb add meg a neved és osztályod!";
+        return;
+      }
+
       const guess = input.value.trim().toLowerCase();
 
       if (guess === "sos") {
@@ -172,12 +211,40 @@
       if (guess === target) {
         message.innerHTML = `<strong>Eltaláltad!</strong> Tippjeid száma: ${attempts}`;
         input.disabled = true;
+
+        const entry = {
+          name: player.name,
+          osztaly: player.osztaly,
+          tries: attempts,
+          date: new Date().toISOString().slice(0, 10)
+        };
+
+        const data = JSON.parse(localStorage.getItem("lauderWordleScores") || "[]");
+        data.push(entry);
+        localStorage.setItem("lauderWordleScores", JSON.stringify(data));
+        renderLeaderboard();
       } else {
         message.textContent = "";
       }
 
       input.value = "";
       input.focus();
+    }
+
+    function renderLeaderboard() {
+      const list = document.getElementById("leaderboard");
+      const data = JSON.parse(localStorage.getItem("lauderWordleScores") || "[]");
+
+      const today = new Date().toISOString().slice(0, 10);
+      const todaysScores = data.filter(e => e.date === today);
+      todaysScores.sort((a, b) => a.tries - b.tries);
+
+      list.innerHTML = "";
+      todaysScores.forEach((entry, index) => {
+        const li = document.createElement("li");
+        li.textContent = `${index + 1}. ${entry.name} (${entry.osztaly}) – ${entry.tries} próbálkozás`;
+        list.appendChild(li);
+      });
     }
 
     loadWordList();
