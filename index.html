@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+  <meta charset="UTF-8">
+  <title>Magyar Wordle – Napi Szó</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      background: #121213;
+      color: white;
+    }
+    .board {
+      display: grid;
+      grid-template-columns: repeat(5, 60px);
+      gap: 10px;
+      justify-content: center;
+      margin-top: 30px;
+    }
+    .tile {
+      width: 60px;
+      height: 60px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 32px;
+      font-weight: bold;
+      border: 2px solid #3a3a3c;
+      text-transform: uppercase;
+    }
+    .correct {
+      background-color: #538d4e;
+      border-color: #538d4e;
+    }
+    .present {
+      background-color: #b59f3b;
+      border-color: #b59f3b;
+    }
+    .absent {
+      background-color: #3a3a3c;
+      border-color: #3a3a3c;
+    }
+    input[type="text"] {
+      margin-top: 20px;
+      padding: 10px;
+      font-size: 20px;
+      width: 200px;
+      text-align: center;
+      text-transform: lowercase;
+    }
+    button {
+      padding: 10px 20px;
+      font-size: 18px;
+      margin: 10px 5px;
+      cursor: pointer;
+    }
+    #message {
+      margin-top: 20px;
+      font-size: 18px;
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Magyar Wordle – Napi Szó</h1>
+  <div class="board" id="board"></div>
+
+  <input type="text" id="guessInput" maxlength="5" placeholder="Írj egy 5 betűs szót">
+  <button onclick="makeGuess()">Tippel</button>
+  <p id="message"></p>
+
+  <script>
+    let words = [];
+    let target = "";
+    let attempts = 0;
+
+    const board = document.getElementById('board');
+    const input = document.getElementById('guessInput');
+    const message = document.getElementById('message');
+
+    input.addEventListener("keypress", function (e) {
+      if (e.key === "Enter") makeGuess();
+    });
+
+    // Napi szó generálása
+    function getDailyIndex(wordListLength) {
+      const today = new Date();
+      const daysSinceEpoch = Math.floor(today.getTime() / (1000 * 60 * 60 * 24));
+      return daysSinceEpoch % wordListLength;
+    }
+
+    function loadWordList() {
+      fetch("magyar_latin2.txt")
+        .then(response => response.text())
+        .then(text => {
+          // Szólista: 1 szó / sor
+          words = text.split(/\r?\n/).map(w => w.trim().toLowerCase()).filter(w => w.length === 5);
+          if (words.length === 0) {
+            message.textContent = "Nincs érvényes 5 betűs szó.";
+            return;
+          }
+          const index = getDailyIndex(words.length);
+          target = words[index];
+          console.log("Napi szó:", target); // teszteléshez
+        })
+        .catch(err => {
+          console.error("Hiba a szólista betöltésekor:", err);
+          message.textContent = "Nem sikerült betölteni a szavakat.";
+        });
+    }
+
+    function makeGuess() {
+      const guess = input.value.trim().toLowerCase();
+
+      if (guess === "sos") {
+        message.innerHTML = `A szó: <strong>${target}</strong>. Tippjeid száma: ${attempts}`;
+        input.disabled = true;
+        return;
+      }
+
+      if (guess.length !== 5) {
+        message.textContent = "A szó nem 5 betűs.";
+        return;
+      }
+
+      if (!words.includes(guess)) {
+        message.textContent = "Ez a szó nincs az adatbázisban.";
+        return;
+      }
+
+      const row = document.createElement("div");
+      row.className = "row";
+      row.style.display = "contents";
+
+      const targetLetters = target.split('');
+      const guessLetters = guess.split('');
+      const result = Array(5).fill("absent");
+      const used = Array(5).fill(false);
+
+      for (let i = 0; i < 5; i++) {
+        if (guessLetters[i] === targetLetters[i]) {
+          result[i] = "correct";
+          used[i] = true;
+        }
+      }
+
+      for (let i = 0; i < 5; i++) {
+        if (result[i] !== "correct") {
+          for (let j = 0; j < 5; j++) {
+            if (!used[j] && guessLetters[i] === targetLetters[j]) {
+              result[i] = "present";
+              used[j] = true;
+              break;
+            }
+          }
+        }
+      }
+
+      for (let i = 0; i < 5; i++) {
+        const tile = document.createElement("div");
+        tile.className = `tile ${result[i]}`;
+        tile.textContent = guessLetters[i];
+        row.appendChild(tile);
+      }
+
+      board.appendChild(row);
+      attempts++;
+
+      if (guess === target) {
+        message.innerHTML = `<strong>Eltaláltad!</strong> Tippjeid száma: ${attempts}`;
+        input.disabled = true;
+      } else {
+        message.textContent = "";
+      }
+
+      input.value = "";
+      input.focus();
+    }
+
+    loadWordList();
+  </script>
+
+</body>
+</html>
