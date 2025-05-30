@@ -82,7 +82,6 @@
       if (e.key === "Enter") makeGuess();
     });
 
-    // Napi szó generálása
     function getDailyIndex(wordListLength) {
       const today = new Date();
       const daysSinceEpoch = Math.floor(today.getTime() / (1000 * 60 * 60 * 24));
@@ -93,15 +92,19 @@
       fetch("magyar_latin2.txt")
         .then(response => response.text())
         .then(text => {
-          // Szólista: 1 szó / sor
-          words = text.split(/\r?\n/).map(w => w.trim().toLowerCase()).filter(w => w.length === 5);
+          words = text
+            .split(/\r?\n/)
+            .map(w => w.trim().toLowerCase())
+            .filter(w => /^[a-záéíóöőúüű]{5}$/i.test(w)); // csak 5 betűs magyar szavak
+
           if (words.length === 0) {
-            message.textContent = "Nincs érvényes 5 betűs szó.";
+            message.textContent = "Nem találtam érvényes 5 betűs szót.";
             return;
           }
+
           const index = getDailyIndex(words.length);
           target = words[index];
-          console.log("Napi szó:", target); // teszteléshez
+          console.log("Napi szó:", target); // töröld éles verzióban
         })
         .catch(err => {
           console.error("Hiba a szólista betöltésekor:", err);
