@@ -2,14 +2,13 @@
 <html lang="hu">
 <head>
   <meta charset="UTF-8" />
-  <title>Lauder Wordle</title>
+  <title>Lauder Wordle - Start Test</title>
   <style>
     body {
       font-family: Arial, sans-serif;
-      text-align: center;
       background: #121213;
       color: white;
-      margin: 0;
+      text-align: center;
       padding: 20px;
     }
     input[type="text"] {
@@ -26,535 +25,53 @@
       margin: 5px;
       cursor: pointer;
     }
-    .board {
-      display: grid;
-      grid-template-columns: repeat(5, 60px);
-      gap: 10px;
-      justify-content: center;
-      margin-top: 15px;
-    }
-    .tile {
-      width: 60px;
-      height: 60px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 32px;
-      font-weight: bold;
-      border: 2px solid #3a3a3c;
-      text-transform: uppercase;
-    }
-    .correct {
-      background-color: #538d4e;
-      border-color: #538d4e;
-    }
-    .present {
-      background-color: #b59f3b;
-      border-color: #b59f3b;
-    }
-    .absent {
-      background-color: #3a3a3c;
-      border-color: #3a3a3c;
-    }
-    #leaderboard, #globalLeaderboard {
-      list-style: none;
-      padding: 0;
-      max-width: 400px;
-      margin: 10px auto;
-      text-align: left;
-    }
-    #countdown, #timer {
-      font-weight: bold;
+    #setupMessage {
       margin-top: 10px;
-    }
-    #confetti-canvas {
-      position: fixed;
-      pointer-events: none;
-      width: 100%;
-      height: 100%;
-      top: 0;
-      left: 0;
-      z-index: 9999;
-    }
-    hr {
-      margin-top: 30px;
-      margin-bottom: 30px;
+      font-weight: bold;
+      color: #4caf50;
     }
   </style>
 </head>
 <body>
 
   <h1>Lauder Wordle</h1>
-
   <h2>Kérlek add meg a neved és osztályod:</h2>
-  <input type="text" id="playerName" placeholder="Név" />
-  <input type="text" id="playerClass" placeholder="Osztály" />
+  <input type="text" id="playerName" placeholder="Név" autocomplete="off" />
+  <input type="text" id="playerClass" placeholder="Osztály" autocomplete="off" />
   <button onclick="startGame()">Start</button>
   <p id="setupMessage"></p>
-  
-  <hr />
 
-  <!-- Daily Game -->
-  <h2>Napi játék (Toplista számít)</h2>
-  <div>Szóváltásig hátralévő idő: <span id="countdown">--:--:--</span></div>
-  <div class="board" id="board"></div>
-  <input type="text" id="guessInput" maxlength="5" placeholder="Írj egy 5 betűs szót" />
-  <button onclick="makeGuess()">Tippel</button>
-  <p id="message"></p>
-  <div>Játék idő: <span id="timer">00:00</span></div>
-
-  <h3>Toplista (Napi szó)</h3>
-  <ul id="leaderboard"></ul>
-
-  <h3>Előző napi szó és toplista</h3>
-  <p id="prevDayWord"></p>
-  <ul id="prevDayLeaderboard"></ul>
-
-  <hr />
-
-  <!-- Practice Mode -->
-  <h2>Gyakorló mód (Nem számít a toplistába)</h2>
-  <button onclick="startPractice()">Új szó gyakorláshoz</button>
-  <div class="board" id="practiceBoard"></div>
-  <input type="text" id="practiceGuess" maxlength="5" placeholder="Írj egy 5 betűs szót" />
-  <button onclick="makePracticeGuess()">Tippel</button>
-  <p id="practiceMessage"></p>
-
-  <hr />
-
-  <!-- Global Leaderboard -->
-  <h2>Összesített toplista (Örökös)</h2>
-  <ul id="globalLeaderboard"></ul>
-
-  <canvas id="confetti-canvas"></canvas>
-
-  <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/10.3.0/firebase-app.js";
-    import {
-      getFirestore,
-      collection,
-      addDoc,
-      query,
-      where,
-      orderBy,
-      getDocs,
-      serverTimestamp,
-      Timestamp,
-    } from "https://www.gstatic.com/firebasejs/10.3.0/firebase-firestore.js";
-
-    const firebaseConfig = {
-      apiKey: "AIzaSyDyA43gRPMPbXV4UnXkWTzlxuLzyY5fQTY",
-      authDomain: "lauder-wordle.firebaseapp.com",
-      projectId: "lauder-wordle",
-      storageBucket: "lauder-wordle.appspot.com",
-      messagingSenderId: "989182518286",
-      appId: "1:989182518286:web:b56d40197beff94300085f",
-      measurementId: "G-0MC26GFHTJ",
-    };
-
-    const app = initializeApp(firebaseConfig);
-    const db = getFirestore(app);
-
-    let words = [];
-    let target = "";
-    let attempts = 0;
-    let player = null;
-    let gameStartTime = null;
-
-    let practiceTarget = "";
-    let practiceAttempts = 0;
-
-    const board = document.getElementById("board");
-    const input = document.getElementById("guessInput");
-    const message = document.getElementById("message");
-    const timerDisplay = document.getElementById("timer");
-    const countdownDisplay = document.getElementById("countdown");
-
-    const leaderboardList = document.getElementById("leaderboard");
-    const prevDayWordElem = document.getElementById("prevDayWord");
-    const prevDayLeaderboardList = document.getElementById("prevDayLeaderboard");
-
-    const practiceBoard = document.getElementById("practiceBoard");
-    const practiceInput = document.getElementById("practiceGuess");
-    const practiceMessage = document.getElementById("practiceMessage");
-
-    const globalLeaderboardList = document.getElementById("globalLeaderboard");
-
-    input.addEventListener("keypress", function (e) {
-      if (e.key === "Enter") makeGuess();
-    });
-    practiceInput.addEventListener("keypress", function (e) {
-      if (e.key === "Enter") makePracticeGuess();
-    });
-
-    // Start Daily Game
+  <script>
     function startGame() {
-      const name = document.getElementById("playerName").value.trim();
-      const osztaly = document.getElementById("playerClass").value.trim();
+      const nameInput = document.getElementById("playerName");
+      const classInput = document.getElementById("playerClass");
       const setupMsg = document.getElementById("setupMessage");
+      const name = nameInput.value.trim();
+      const osztaly = classInput.value.trim();
 
-      if (!name || !osztaly) {
+      console.log("Name:", name);
+      console.log("Class:", osztaly);
+
+      if (name.length === 0 || osztaly.length === 0) {
         setupMsg.textContent = "Kérlek, add meg a neved és osztályod!";
+        setupMsg.style.color = "#ff5252";  // red error color
         return;
       }
 
-      player = { name, osztaly };
-      document.getElementById("playerName").disabled = true;
-      document.getElementById("playerClass").disabled = true;
-      setupMsg.innerHTML = `<strong>Jó játékot, ${name} (${osztaly})!</strong>`;
+      setupMsg.style.color = "#4caf50"; // green success color
+      setupMsg.textContent = `Jó játékot, ${name} (${osztaly})!`;
 
-      attempts = 0;
-      board.innerHTML = "";
-      input.disabled = false;
-      input.value = "";
-      input.focus();
+      // Disable inputs and button to prevent editing after start
+      nameInput.disabled = true;
+      classInput.disabled = true;
 
-      gameStartTime = new Date();
-      startTimer();
+      // You can now continue with the game initialization here
+      // For example, load daily word, enable guess input, etc.
 
-      // Reset message
-      message.textContent = "";
-
-      renderLeaderboard();
-      renderPrevDayData();
-      renderGlobalLeaderboard();
+      // Example:
+      // alert(`Game started for ${name} from ${osztaly}`);
     }
-
-    // Load words from file
-    function loadWordList() {
-      return fetch("magyar_latin2.txt")
-        .then((response) => response.text())
-        .then((text) => {
-          words = text
-            .split(/\r?\n/)
-            .map((w) => w.trim().toLowerCase())
-            .filter((w) => /^[a-záéíóöőúüű]{5}$/i.test(w));
-
-          if (words.length === 0) {
-            message.textContent = "Nem találtam érvényes 5 betűs szót.";
-            throw new Error("No valid words");
-          }
-
-          // Setup target for daily game based on day index
-          const index = getDailyIndex(words.length);
-          target = words[index];
-          console.log("Napi szó:", target);
-        })
-        .catch((err) => {
-          console.error("Szólista betöltési hiba:", err);
-          message.textContent = "Nem sikerült betölteni a szavakat.";
-        });
-    }
-
-    function getDailyIndex(len) {
-      const today = new Date();
-      const daysSinceEpoch = Math.floor(today.getTime() / (1000 * 60 * 60 * 24));
-      return daysSinceEpoch % len;
-    }
-
-    // Timer for current game
-    let timerInterval;
-    function startTimer() {
-      clearInterval(timerInterval);
-      timerInterval = setInterval(() => {
-        if (!gameStartTime) {
-          timerDisplay.textContent = "00:00";
-          return;
-        }
-        const diff = Math.floor((new Date() - gameStartTime) / 1000);
-        const min = String(Math.floor(diff / 60)).padStart(2, "0");
-        const sec = String(diff % 60).padStart(2, "0");
-        timerDisplay.textContent = `${min}:${sec}`;
-      }, 1000);
-    }
-
-    // Countdown to next midnight for daily reset
-    function startCountdown() {
-      function updateCountdown() {
-        const now = new Date();
-        const tomorrow = new Date(now);
-        tomorrow.setHours(24, 0, 0, 0);
-        const diff = tomorrow - now;
-        if (diff <= 0) {
-          countdownDisplay.textContent = "00:00:00";
-          // Reload the page or reset daily word on midnight
-          location.reload();
-          return;
-        }
-        const h = String(Math.floor(diff / (1000 * 60 * 60))).padStart(2, "0");
-        const m = String(Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60))).padStart(2, "0");
-        const s = String(Math.floor((diff % (1000 * 60)) / 1000)).padStart(2, "0");
-        countdownDisplay.textContent = `${h}:${m}:${s}`;
-      }
-      updateCountdown();
-      setInterval(updateCountdown, 1000);
-    }
-
-    // Make guess for daily game
-    async function makeGuess() {
-      if (!player) {
-        message.textContent = "Előbb add meg a neved és osztályod!";
-        return;
-      }
-
-      const guess = input.value.trim().toLowerCase();
-
-      if (guess === "sos") {
-        message.innerHTML = `A szó: <strong>${target}</strong>. Tippjeid száma: ${attempts}`;
-        input.disabled = true;
-        return;
-      }
-
-      if (guess.length !== 5) {
-        message.textContent = "A szó nem 5 betűs.";
-        return;
-      }
-
-      if (!words.includes(guess)) {
-        message.textContent = "Ez a szó nincs az adatbázisban.";
-        return;
-      }
-
-      renderGuessRow(board, guess, target);
-
-      attempts++;
-
-      if (guess === target) {
-        message.innerHTML = `<strong>Eltaláltad!</strong> Tippjeid száma: ${attempts}`;
-        input.disabled = true;
-        clearInterval(timerInterval);
-
-        // Save score to Firestore
-        try {
-          await addDoc(collection(db, "scores"), {
-            name: player.name,
-            osztaly: player.osztaly,
-            tries: attempts,
-            date: new Date().toISOString().slice(0, 10),
-            timestamp: serverTimestamp(),
-          });
-          renderLeaderboard();
-          renderGlobalLeaderboard();
-          showConfetti();
-        } catch (e) {
-          console.error("Hiba a pontok mentésekor:", e);
-          message.textContent = "Hiba történt a pontok mentésekor.";
-        }
-      } else {
-        message.textContent = "";
-      }
-
-      input.value = "";
-      input.focus();
-    }
-
-    // Render a guess row in given board element
-    function renderGuessRow(boardElement, guess, targetWord) {
-      const row = document.createElement("div");
-      row.className = "row";
-      row.style.display = "contents";
-
-      const targetLetters = targetWord.split("");
-      const guessLetters = guess.split("");
-      const result = Array(5).fill("absent");
-      const used = Array(5).fill(false);
-
-      // Correct letters
-      for (let i = 0; i < 5; i++) {
-        if (guessLetters[i] === targetLetters[i]) {
-          result[i] = "correct";
-          used[i] = true;
-          targetLetters[i] = null; // mark used
-        }
-      }
-      // Present letters (wrong place)
-      for (let i = 0; i < 5; i++) {
-        if (result[i] !== "correct") {
-          const idx = targetLetters.indexOf(guessLetters[i]);
-          if (idx !== -1 && !used[idx]) {
-            result[i] = "present";
-            used[idx] = true;
-            targetLetters[idx] = null;
-          }
-        }
-      }
-
-      guessLetters.forEach((letter, i) => {
-        const tile = document.createElement("div");
-        tile.className = "tile " + result[i];
-        tile.textContent = letter.toUpperCase();
-        row.appendChild(tile);
-      });
-
-      boardElement.appendChild(row);
-    }
-
-    // Render leaderboard for today
-    async function renderLeaderboard() {
-      const today = new Date().toISOString().slice(0, 10);
-      const q = query(collection(db, "scores"), where("date", "==", today), orderBy("tries", "asc"));
-
-      const querySnapshot = await getDocs(q);
-      leaderboardList.innerHTML = "";
-
-      if (querySnapshot.empty) {
-        leaderboardList.innerHTML = "<li>Nincs még eredmény ma.</li>";
-        return;
-      }
-
-      querySnapshot.forEach((doc) => {
-        const data = doc.data();
-        const li = document.createElement("li");
-        li.textContent = `${data.name} (${data.osztaly}) - Tippjei: ${data.tries}`;
-        leaderboardList.appendChild(li);
-      });
-    }
-
-    // Render previous day word and leaderboard
-    async function renderPrevDayData() {
-      const yesterday = new Date();
-      yesterday.setDate(yesterday.getDate() - 1);
-      const yDate = yesterday.toISOString().slice(0, 10);
-      prevDayWordElem.textContent = "";
-
-      // Get yesterday's word by date index
-      const wordsLen = words.length;
-      const yIndex = Math.floor((Date.now() - 86400000) / (1000 * 60 * 60 * 24)) % wordsLen;
-      const prevWord = words[yIndex];
-      prevDayWordElem.innerHTML = `<strong>Előző napi szó:</strong> ${prevWord.toUpperCase()}`;
-
-      // Fetch yesterday's leaderboard
-      const q = query(collection(db, "scores"), where("date", "==", yDate), orderBy("tries", "asc"));
-      const querySnapshot = await getDocs(q);
-
-      prevDayLeaderboardList.innerHTML = "";
-      if (querySnapshot.empty) {
-        prevDayLeaderboardList.innerHTML = "<li>Nincs adat az előző napról.</li>";
-        return;
-      }
-      querySnapshot.forEach((doc) => {
-        const data = doc.data();
-        const li = document.createElement("li");
-        li.textContent = `${data.name} (${data.osztaly}) - Tippjei: ${data.tries}`;
-        prevDayLeaderboardList.appendChild(li);
-      });
-    }
-
-    // Render global leaderboard (all time best tries)
-    async function renderGlobalLeaderboard() {
-      const q = query(collection(db, "scores"), orderBy("tries", "asc"), orderBy("timestamp", "asc"));
-      const querySnapshot = await getDocs(q);
-      globalLeaderboardList.innerHTML = "";
-
-      if (querySnapshot.empty) {
-        globalLeaderboardList.innerHTML = "<li>Nincs még adat.</li>";
-        return;
-      }
-
-      // Show top 10 scores overall
-      const top = [];
-      querySnapshot.forEach((doc) => {
-        if (top.length < 10) {
-          top.push(doc.data());
-        }
-      });
-
-      top.forEach((data) => {
-        const li = document.createElement("li");
-        li.textContent = `${data.name} (${data.osztaly}) - Tippjei: ${data.tries}`;
-        globalLeaderboardList.appendChild(li);
-      });
-    }
-
-    // Confetti animation on success
-    function showConfetti() {
-      const duration = 3000;
-      const end = Date.now() + duration;
-      const colors = ["#bb0000", "#ffffff", "#ffff00"];
-
-      (function frame() {
-        const timeLeft = end - Date.now();
-
-        if (timeLeft <= 0) return;
-
-        // simple confetti rectangles
-        const canvas = document.getElementById("confetti-canvas");
-        if (!canvas) return;
-        if (!canvas.getContext) return;
-
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight;
-        const ctx = canvas.getContext("2d");
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-        for (let i = 0; i < 50; i++) {
-          ctx.fillStyle = colors[Math.floor(Math.random() * colors.length)];
-          ctx.fillRect(Math.random() * canvas.width, Math.random() * canvas.height, 5, 10);
-        }
-
-        requestAnimationFrame(frame);
-      })();
-
-      setTimeout(() => {
-        const canvas = document.getElementById("confetti-canvas");
-        if (canvas) {
-          const ctx = canvas.getContext("2d");
-          ctx.clearRect(0, 0, canvas.width, canvas.height);
-        }
-      }, duration);
-    }
-
-    // Practice mode functions
-
-    function startPractice() {
-      practiceBoard.innerHTML = "";
-      practiceInput.value = "";
-      practiceInput.disabled = false;
-      practiceMessage.textContent = "";
-      practiceAttempts = 0;
-
-      practiceTarget = getRandomWord();
-      console.log("Gyakorló mód szó:", practiceTarget);
-    }
-
-    function getRandomWord() {
-      if (words.length === 0) return "";
-      return words[Math.floor(Math.random() * words.length)];
-    }
-
-    function makePracticeGuess() {
-      const guess = practiceInput.value.trim().toLowerCase();
-
-      if (guess.length !== 5) {
-        practiceMessage.textContent = "A szó nem 5 betűs.";
-        return;
-      }
-
-      if (!words.includes(guess)) {
-        practiceMessage.textContent = "Ez a szó nincs az adatbázisban.";
-        return;
-      }
-
-      renderGuessRow(practiceBoard, guess, practiceTarget);
-      practiceAttempts++;
-
-      if (guess === practiceTarget) {
-        practiceMessage.innerHTML = `<strong>Eltaláltad a gyakorló szót!</strong> Tippjeid száma: ${practiceAttempts}`;
-        practiceInput.disabled = true;
-        showConfetti();
-      } else {
-        practiceMessage.textContent = "";
-      }
-
-      practiceInput.value = "";
-      practiceInput.focus();
-    }
-
-    // On load
-    window.onload = () => {
-      loadWordList();
-      startCountdown();
-    };
   </script>
+
 </body>
 </html>
