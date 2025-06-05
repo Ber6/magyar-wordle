@@ -2,15 +2,55 @@
 <html lang="hu">
 <head>
   <meta charset="UTF-8" />
-  <title>Lauder Wordle - Start Test</title>
+  <title>Lauder Wordle - Teljes verzió</title>
   <style>
     body {
       font-family: Arial, sans-serif;
       background: #121213;
       color: white;
-      text-align: center;
       padding: 20px;
+      margin: 0;
+      text-align: center;
     }
+    h1 {
+      margin-bottom: 10px;
+    }
+    /* Fülek */
+    .tabs {
+      display: flex;
+      justify-content: center;
+      margin-bottom: 20px;
+      border-bottom: 2px solid #3a3a3c;
+    }
+    .tab {
+      padding: 10px 20px;
+      cursor: pointer;
+      font-weight: bold;
+      border: 2px solid transparent;
+      border-bottom: none;
+      color: #bbb;
+      transition: color 0.3s;
+      user-select: none;
+    }
+    .tab:hover {
+      color: white;
+    }
+    .tab.active {
+      border-color: #538d4e;
+      color: white;
+      background-color: #1e1e1e;
+      border-bottom: 2px solid #121213;
+    }
+    .tab-content {
+      display: none;
+      max-width: 600px;
+      margin: 0 auto;
+      text-align: center;
+    }
+    .tab-content.active {
+      display: block;
+    }
+
     input[type="text"] {
       padding: 10px;
       font-size: 16px;
@@ -18,59 +58,459 @@
       width: 200px;
       text-align: center;
       text-transform: lowercase;
+      border-radius: 4px;
+      border: 1px solid #3a3a3c;
+      background-color: #222;
+      color: white;
     }
     button {
       padding: 10px 20px;
       font-size: 16px;
       margin: 5px;
       cursor: pointer;
+      border-radius: 4px;
+      background-color: #538d4e;
+      border: none;
+      color: white;
+      transition: background-color 0.3s;
     }
-    #setupMessage {
+    button:hover:not(:disabled) {
+      background-color: #4a7a3f;
+    }
+    button:disabled {
+      background-color: #333;
+      cursor: not-allowed;
+    }
+    #setupMessageDaily, #messageDaily, #practiceMessage {
       margin-top: 10px;
       font-weight: bold;
+      min-height: 1.5em;
+    }
+    #setupMessageDaily {
       color: #4caf50;
     }
+    #messageDaily {
+      color: white;
+    }
+    #practiceMessage {
+      color: #4caf50;
+    }
+
+    .board {
+      display: grid;
+      grid-template-columns: repeat(5, 60px);
+      gap: 10px;
+      justify-content: center;
+      margin-top: 20px;
+    }
+    .tile {
+      width: 60px;
+      height: 60px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 32px;
+      font-weight: bold;
+      border: 2px solid #3a3a3c;
+      text-transform: uppercase;
+      user-select: none;
+    }
+    .correct {
+      background-color: #538d4e;
+      border-color: #538d4e;
+    }
+    .present {
+      background-color: #b59f3b;
+      border-color: #b59f3b;
+    }
+    .absent {
+      background-color: #3a3a3c;
+      border-color: #3a3a3c;
+    }
+
+    #leaderboard {
+      list-style: none;
+      padding: 0;
+      max-width: 400px;
+      margin: 20px auto 0 auto;
+      text-align: left;
+      color: white;
+    }
+    #leaderboard li {
+      margin: 5px 0;
+    }
+
   </style>
 </head>
 <body>
 
   <h1>Lauder Wordle</h1>
-  <h2>Kérlek add meg a neved és osztályod:</h2>
-  <input type="text" id="playerName" placeholder="Név" autocomplete="off" />
-  <input type="text" id="playerClass" placeholder="Osztály" autocomplete="off" />
-  <button onclick="startGame()">Start</button>
-  <p id="setupMessage"></p>
+
+  <div class="tabs">
+    <div class="tab active" data-tab="daily">Napi szó (Toplista)</div>
+    <div class="tab" data-tab="practice">Gyakorló játék</div>
+  </div>
+
+  <!-- Napi szó tab -->
+  <div id="daily" class="tab-content active">
+    <h2>Kérlek add meg a neved és osztályod:</h2>
+    <input type="text" id="playerNameDaily" placeholder="Név" autocomplete="off" />
+    <input type="text" id="playerClassDaily" placeholder="Osztály" autocomplete="off" />
+    <button id="startDailyBtn" onclick="startDailyGame()">Start</button>
+    <p id="setupMessageDaily"></p>
+
+    <div class="board" id="boardDaily"></div>
+
+    <input type="text" id="guessInputDaily" maxlength="5" placeholder="Írj egy 5 betűs szót" disabled />
+    <button id="guessBtnDaily" onclick="makeGuessDaily()" disabled>Tippel</button>
+    <p id="messageDaily"></p>
+
+    <h2>Toplista (Napi szó)</h2>
+    <ul id="leaderboard"></ul>
+  </div>
+
+  <!-- Gyakorló játék tab -->
+  <div id="practice" class="tab-content">
+    <h2>Gyakorló játék - azonnal kezdhetsz, nem számít bele a toplistába</h2>
+    <button id="startPracticeBtn" onclick="startPracticeGame()">Új gyakorló játék indítása</button>
+    <p id="practiceMessage"></p>
+
+    <div class="board" id="boardPractice"></div>
+
+    <input type="text" id="guessInputPractice" maxlength="5" placeholder="Írj egy 5 betűs szót" disabled />
+    <button id="guessBtnPractice" onclick="makeGuessPractice()" disabled>Tippel</button>
+    <p id="messagePractice"></p>
+  </div>
+
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
 
   <script>
-    function startGame() {
-      const nameInput = document.getElementById("playerName");
-      const classInput = document.getElementById("playerClass");
-      const setupMsg = document.getElementById("setupMessage");
+    // Firebase config (cseréld le a sajátodra)
+    const firebaseConfig = {
+      apiKey: "AIzaSyDyA43gRPMPbXV4UnXkWTzlxuLzyY5fQTY",
+      authDomain: "lauder-wordle.firebaseapp.com",
+      projectId: "lauder-wordle",
+      storageBucket: "lauder-wordle.appspot.com",
+      messagingSenderId: "989182518286",
+      appId: "1:989182518286:web:b56d40197beff94300085f",
+      measurementId: "G-0MC26GFHTJ"
+    };
+    // Initialize Firebase
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+
+    // Globális változók
+    let words = [];
+    let targetDaily = "";
+    let attemptsDaily = 0;
+    let playerDaily = null;
+
+    let targetPractice = "";
+    let attemptsPractice = 0;
+
+    // DOM elemek napi szóhoz
+    const boardDaily = document.getElementById('boardDaily');
+    const inputDaily = document.getElementById('guessInputDaily');
+    const guessBtnDaily = document.getElementById('guessBtnDaily');
+    const messageDaily = document.getElementById('messageDaily');
+    const setupMessageDaily = document.getElementById('setupMessageDaily');
+
+    // DOM elemek gyakorló játékhoz
+    const boardPractice = document.getElementById('boardPractice');
+    const inputPractice = document.getElementById('guessInputPractice');
+    const guessBtnPractice = document.getElementById('guessBtnPractice');
+    const messagePractice = document.getElementById('messagePractice');
+
+    // Fülek kezelése
+    const tabs = document.querySelectorAll(".tab");
+    const contents = document.querySelectorAll(".tab-content");
+    tabs.forEach(tab => {
+      tab.addEventListener("click", () => {
+        const target = tab.getAttribute("data-tab");
+        tabs.forEach(t => t.classList.remove("active"));
+        tab.classList.add("active");
+        contents.forEach(c => c.classList.toggle("active", c.id === target));
+      });
+    });
+
+    // Betöltjük a szólistát (magyar_latin2.txt kell a repo-ban)
+    async function loadWordList() {
+      try {
+        const response = await fetch("magyar_latin2.txt");
+        const text = await response.text();
+        words = text
+          .split(/\r?\n/)
+          .map(w => w.trim().toLowerCase())
+          .filter(w => /^[a-záéíóöőúüű]{5}$/i.test(w));
+
+        if (words.length === 0) {
+          setupMessageDaily.textContent = "Nem találtam érvényes 5 betűs szót.";
+          setupMessageDaily.style.color = "#ff5252";
+          return;
+        }
+
+        // Kiválasztjuk a napi szót a nap alapján
+        const index = getDailyIndex(words.length);
+        targetDaily = words[index];
+        console.log("Napi szó:", targetDaily);
+
+      } catch (e) {
+        console.error("Szólista betöltési hiba:", e);
+        setupMessageDaily.textContent = "Nem sikerült betölteni a szavakat.";
+        setupMessageDaily.style.color = "#ff5252";
+      }
+    }
+
+    // Számolja, hogy hány nap telt el 1970.01.01 óta, visszaadja az indexet a szólistához
+    function getDailyIndex(len) {
+      const today = new Date();
+      const daysSinceEpoch = Math.floor(today.getTime() / (1000 * 60 * 60 * 24));
+      return daysSinceEpoch % len;
+    }
+
+    // Napi szó játék indítása
+    function startDailyGame() {
+      const nameInput = document.getElementById("playerNameDaily");
+      const classInput = document.getElementById("playerClassDaily");
       const name = nameInput.value.trim();
       const osztaly = classInput.value.trim();
 
-      console.log("Name:", name);
-      console.log("Class:", osztaly);
-
-      if (name.length === 0 || osztaly.length === 0) {
-        setupMsg.textContent = "Kérlek, add meg a neved és osztályod!";
-        setupMsg.style.color = "#ff5252";  // red error color
+      if (!name || !osztaly) {
+        setupMessageDaily.textContent = "Kérlek, add meg a neved és osztályod!";
+        setupMessageDaily.style.color = "#ff5252";
         return;
       }
 
-      setupMsg.style.color = "#4caf50"; // green success color
-      setupMsg.textContent = `Jó játékot, ${name} (${osztaly})!`;
+      playerDaily = { name, osztaly };
 
-      // Disable inputs and button to prevent editing after start
+      // Letiltjuk a mezőket és gombot
       nameInput.disabled = true;
       classInput.disabled = true;
+      document.getElementById("startDailyBtn").disabled = true;
 
-      // You can now continue with the game initialization here
-      // For example, load daily word, enable guess input, etc.
+      setupMessageDaily.textContent = `Jó játékot, ${name} (${osztaly})!`;
+      setupMessageDaily.style.color = "#4caf50";
 
-      // Example:
-      // alert(`Game started for ${name} from ${osztaly}`);
+      // Engedélyezzük a tippelést
+      inputDaily.disabled = false;
+      guessBtnDaily.disabled = false;
+      inputDaily.focus();
+
+      // Töröljük a korábbi játékot
+      boardDaily.innerHTML = "";
+      attemptsDaily = 0;
+      messageDaily.textContent = "";
+
+      drawEmptyBoard(boardDaily);
+
+      console.log("Napi szó játék elindult.");
     }
+
+    // Gyakorló játék indítása
+    function startPracticeGame() {
+      // Válasszunk véletlenszerű szót
+      targetPractice = words[Math.floor(Math.random() * words.length)];
+      attemptsPractice = 0;
+
+      // Üzenet, engedélyezés
+      messagePractice.textContent = "Új gyakorló játék indult! (Ez nem számít a toplistába.)";
+      messagePractice.style.color = "#4caf50";
+
+      inputPractice.disabled = false;
+      guessBtnPractice.disabled = false;
+      inputPractice.value = "";
+      inputPractice.focus();
+
+      boardPractice.innerHTML = "";
+      drawEmptyBoard(boardPractice);
+
+      console.log("Gyakorló játék szó:", targetPractice);
+    }
+
+    // Kirajzolunk üres táblát (6 sor, 5 oszlop)
+    function drawEmptyBoard(board) {
+      board.innerHTML = "";
+      for (let i = 0; i < 6 * 5; i++) {
+        const tile = document.createElement("div");
+        tile.classList.add("tile");
+        board.appendChild(tile);
+      }
+    }
+
+    // Tippelés Napi szó játékban
+    function makeGuessDaily() {
+      const guess = inputDaily.value.trim().toLowerCase();
+      if (!validateGuess(guess)) return;
+
+      attemptsDaily++;
+      inputDaily.value = "";
+      inputDaily.focus();
+
+      updateBoard(boardDaily, guess, targetDaily);
+
+      if (guess === targetDaily) {
+        messageDaily.style.color = "#4caf50";
+        messageDaily.textContent = `Gratulálok! Kitaláltad a szót ${attemptsDaily} próbálkozásból!`;
+        inputDaily.disabled = true;
+        guessBtnDaily.disabled = true;
+
+        saveScoreToFirestore(playerDaily.name, playerDaily.osztaly, attemptsDaily);
+      } else if (attemptsDaily >= 6) {
+        messageDaily.style.color = "#ff5252";
+        messageDaily.textContent = `Vesztettél! A szó: ${targetDaily.toUpperCase()}`;
+        inputDaily.disabled = true;
+        guessBtnDaily.disabled = true;
+      } else {
+        messageDaily.style.color = "white";
+        messageDaily.textContent = `Próbálkozás: ${attemptsDaily}/6`;
+      }
+    }
+
+    // Tippelés Gyakorló játékban
+    function makeGuessPractice() {
+      const guess = inputPractice.value.trim().toLowerCase();
+      if (!validateGuess(guess)) return;
+
+      attemptsPractice++;
+      inputPractice.value = "";
+      inputPractice.focus();
+
+      updateBoard(boardPractice, guess, targetPractice);
+
+      if (guess === targetPractice) {
+        messagePractice.style.color = "#4caf50";
+        messagePractice.textContent = `Gratulálok! Kitaláltad a szót ${attemptsPractice} próbálkozásból!`;
+        inputPractice.disabled = true;
+        guessBtnPractice.disabled = true;
+      } else if (attemptsPractice >= 6) {
+        messagePractice.style.color = "#ff5252";
+        messagePractice.textContent = `Vesztettél! A szó: ${targetPractice.toUpperCase()}`;
+        inputPractice.disabled = true;
+        guessBtnPractice.disabled = true;
+      } else {
+        messagePractice.style.color = "white";
+        messagePractice.textContent = `Próbálkozás: ${attemptsPractice}/6`;
+      }
+    }
+
+    // Tipp érvényesség ellenőrzése
+    function validateGuess(guess) {
+      if (guess.length !== 5) {
+        alert("A tippnek 5 betűsnek kell lennie.");
+        return false;
+      }
+      if (!/^[a-záéíóöőúüű]+$/.test(guess)) {
+        alert("Csak betűket írj!");
+        return false;
+      }
+      if (!words.includes(guess)) {
+        alert("Ez a szó nincs a listában.");
+        return false;
+      }
+      return true;
+    }
+
+    // Tábla frissítése a tipp szerint
+    function updateBoard(board, guess, target) {
+      // Megkeressük az első még üres sor első 5 mezőjét
+      const tiles = board.querySelectorAll(".tile");
+      let row = -1;
+      for (let r = 0; r < 6; r++) {
+        if (tiles[r*5].textContent === "") {
+          row = r;
+          break;
+        }
+      }
+      if (row === -1) return; // nincs hely
+
+      // Színezzük a betűket: zöld (helyes hely), sárga (szóban van), szürke (nincs)
+      const guessArr = guess.split("");
+      const targetArr = target.split("");
+
+      // Első körben zöldeket bejelöljük
+      let colors = Array(5).fill("absent");
+      let targetCharCount = {};
+
+      // Számoljuk a target karaktereit (csak ahol nem zöld)
+      for(let i=0; i<5; i++) {
+        if(targetArr[i] !== guessArr[i]){
+          targetCharCount[targetArr[i]] = (targetCharCount[targetArr[i]] || 0) + 1;
+        }
+      }
+
+      // Jelöljük a zöldeket
+      for(let i=0; i<5; i++) {
+        if(guessArr[i] === targetArr[i]) {
+          colors[i] = "correct";
+        }
+      }
+
+      // Jelöljük a sárgákat
+      for(let i=0; i<5; i++) {
+        if(colors[i] === "correct") continue;
+        if(targetCharCount[guessArr[i]] > 0){
+          colors[i] = "present";
+          targetCharCount[guessArr[i]]--;
+        }
+      }
+
+      // Kirakjuk a betűket és a színeket
+      for(let i=0; i<5; i++){
+        const tile = tiles[row*5 + i];
+        tile.textContent = guessArr[i].toUpperCase();
+        tile.className = "tile " + colors[i];
+      }
+    }
+
+    // Eredmény mentése Firestore-ba
+    async function saveScoreToFirestore(name, osztaly, attempts) {
+      try {
+        const docRef = await db.collection("scores").add({
+          name: name,
+          osztaly: osztaly,
+          attempts: attempts,
+          date: new Date()
+        });
+        console.log("Eredmény mentve: ", docRef.id);
+        loadLeaderboard(); // újratöltjük a toplistát
+      } catch (e) {
+        console.error("Hiba mentéskor:", e);
+      }
+    }
+
+    // Toplista betöltése
+    async function loadLeaderboard() {
+      const leaderboard = document.getElementById("leaderboard");
+      leaderboard.innerHTML = "<li>Betöltés...</li>";
+      try {
+        const snapshot = await db.collection("scores")
+          .orderBy("attempts", "asc")
+          .limit(10)
+          .get();
+        leaderboard.innerHTML = "";
+        if(snapshot.empty){
+          leaderboard.innerHTML = "<li>Nincs még eredmény.</li>";
+          return;
+        }
+        snapshot.forEach(doc => {
+          const data = doc.data();
+          const li = document.createElement("li");
+          li.textContent = `${data.name} (${data.osztaly}) - próbálkozások: ${data.attempts}`;
+          leaderboard.appendChild(li);
+        });
+      } catch (e) {
+        leaderboard.innerHTML = "<li>Hiba a toplista betöltésekor.</li>";
+        console.error(e);
+      }
+    }
+
+    // Betöltéskor szólista betöltése és toplista frissítése
+    window.onload = async () => {
+      await loadWordList();
+      loadLeaderboard();
+    };
   </script>
 
 </body>
