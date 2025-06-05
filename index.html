@@ -85,7 +85,25 @@
   <h2>Toplista (Napi szó)</h2>
   <ul id="leaderboard"></ul>
 
+  <!-- Firebase SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore.js"></script>
+
   <script>
+    // Firebase config
+    const firebaseConfig = {
+      apiKey: "AIzaSyDyA43gRPMPbXV4UnXkWTzlxuLzyY5fQTY",
+      authDomain: "lauder-wordle.firebaseapp.com",
+      projectId: "lauder-wordle",
+      storageBucket: "lauder-wordle.firebasestorage.app",
+      messagingSenderId: "989182518286",
+      appId: "1:989182518286:web:b56d40197beff94300085f",
+      measurementId: "G-0MC26GFHTJ"
+    };
+
+    const app = firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+
     let words = [];
     let target = "";
     let attempts = 0;
@@ -219,10 +237,12 @@
           date: new Date().toISOString().slice(0, 10)
         };
 
-        const data = JSON.parse(localStorage.getItem("lauderWordleScores") || "[]");
-        data.push(entry);
-        localStorage.setItem("lauderWordleScores", JSON.stringify(data));
-        renderLeaderboard();
+        db.collection("lauder_wordle_scores").add(entry)
+          .then(() => renderLeaderboard())
+          .catch(err => {
+            console.error("Mentési hiba:", err);
+            message.textContent = "Nem sikerült elmenteni az eredményt.";
+          });
       } else {
         message.textContent = "";
       }
@@ -233,22 +253,28 @@
 
     function renderLeaderboard() {
       const list = document.getElementById("leaderboard");
-      const data = JSON.parse(localStorage.getItem("lauderWordleScores") || "[]");
-
       const today = new Date().toISOString().slice(0, 10);
-      const todaysScores = data.filter(e => e.date === today);
-      todaysScores.sort((a, b) => a.tries - b.tries);
 
-      list.innerHTML = "";
-      todaysScores.forEach((entry, index) => {
-        const li = document.createElement("li");
-        li.textContent = `${index + 1}. ${entry.name} (${entry.osztaly}) – ${entry.tries} próbálkozás`;
-        list.appendChild(li);
-      });
+      db.collection("lauder_wordle_scores")
+        .where("date", "==", today)
+        .orderBy("tries")
+        .limit(10)
+        .get()
+        .then(snapshot => {
+          list.innerHTML = "";
+          snapshot.forEach((doc, index) => {
+            const entry = doc.data();
+            const li = document.createElement("li");
+            li.textContent = `${index + 1}. ${entry.name} (${entry.osztaly}) – ${entry.tries} próbálkozás`;
+            list.appendChild(li);
+          });
+        })
+        .catch(err => {
+          console.error("Toplista betöltési hiba:", err);
+        });
     }
 
     loadWordList();
   </script>
-
 </body>
 </html>
